@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 
-// Import the controller functions
 const {
     createEmployee,
     getAllEmployees,
@@ -10,19 +9,17 @@ const {
     deleteEmployee
 } = require('../controllers/employeeController');
 
-// Optional: Import your auth middleware here when you're ready to secure these routes
-// const { protect } = require('../middleware/auth');
+// Import your new security middleware
+const { protect } = require('../middleware/auth');
 
-// Map routes to controller functions
-// For example: router.route('/').post(protect, createEmployee).get(protect, getAllEmployees);
-
+// Add "protect" right before the controller function on any route you want to secure
 router.route('/')
-    .get(getAllEmployees)
-    .post(createEmployee);
+    .get(protect, getAllEmployees)
+    .post(protect, createEmployee);
 
 router.route('/:id')
-    .get(getEmployeeById)
-    .put(updateEmployee)
-    .delete(deleteEmployee);
+    .get(protect, getEmployeeById)
+    .put(protect, updateEmployee)
+    .delete(protect, deleteEmployee);
 
 module.exports = router;
