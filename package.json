@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "seed": "node scripts/seedAdmin.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
