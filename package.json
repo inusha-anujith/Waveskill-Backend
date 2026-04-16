@@ -4,7 +4,11 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "seed": "node scripts/seedAdmin.js"
+    "seed": "node scripts/seedAdmin.js",
+    "seed:users": "node scripts/seedUsers.js",
+    "seed:leaves": "node scripts/seedLeaves.js",
+    "seed:attendance": "node scripts/seedAttendance.js",
+    "seed:all": "node scripts/seedDemo.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

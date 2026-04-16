@@ -11,11 +11,11 @@ const adminAnalyticsRoutes = require('./adminAnalyticsRoutes');
 // Everything under /api/admin requires a logged-in user
 router.use(protect);
 
-// User management & attendance reports are Admin only
-router.use('/users', restrictTo('Admin'), adminUserRoutes);
-router.use('/attendance', restrictTo('Admin'), adminAttendanceRoutes);
-
-// Leave approval & dashboard analytics are open to both Admin and Manager
+// Read-side: both Admin and Manager (analytics, leaves list/approve/reject,
+// attendance reports, user list). Write-side restrictions on /users live in
+// adminUserRoutes (POST/PATCH/DELETE require Admin).
+router.use('/users', restrictTo('Admin', 'Manager'), adminUserRoutes);
+router.use('/attendance', restrictTo('Admin', 'Manager'), adminAttendanceRoutes);
 router.use('/leaves', restrictTo('Admin', 'Manager'), adminLeaveRoutes);
 router.use('/analytics', restrictTo('Admin', 'Manager'), adminAnalyticsRoutes);
 
