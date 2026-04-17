@@ -154,7 +154,7 @@ docker-compose.yml
 server.js                               Boots app + mongo connection
 ```
 
-## Implemented features (per Dasuni.pdf scope)
+## Implemented features
 
 ### 1. Admin/Manager Dashboard — `GET /api/admin/analytics/summary`
 
