@@ -121,7 +121,8 @@ const updateUser = async (req, res) => {
         const allowed = [
             'name', 'email', 'role', 'department', 'position', 'employeeId',
             'phoneNumber', 'homeAddress', 'joinDate', 'totalAnnualLeave',
-            'emergencyContact', 'medicalDetails', 'skills'
+            'emergencyContact', 'medicalDetails', 'skills',
+            'maritalStatus', 'cvUpdateStatus'
         ];
         allowed.forEach((key) => {
             if (req.body[key] !== undefined) user[key] = req.body[key];

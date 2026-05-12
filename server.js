@@ -1,6 +1,7 @@
 require('dotenv').config();
 const app = require('./src/app');
 const connectDB = require('./src/config/db');
+const { startAutoCheckoutJob } = require('./src/jobs/autoCheckout');
 
 // Connect to MongoDB
 connectDB();
@@ -9,6 +10,7 @@ const PORT = process.env.PORT || 5001;
 
 const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    startAutoCheckoutJob();
 });
 
 // Handle unhandled promise rejections (e.g., if the database goes down)

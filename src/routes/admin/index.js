@@ -7,16 +7,18 @@ const adminUserRoutes = require('./adminUserRoutes');
 const adminLeaveRoutes = require('./adminLeaveRoutes');
 const adminAttendanceRoutes = require('./adminAttendanceRoutes');
 const adminAnalyticsRoutes = require('./adminAnalyticsRoutes');
+const adminOTRoutes = require('./adminOTRoutes');
 
-// Everything under /api/admin requires a logged-in user
+// All /api/admin routes require authentication
 router.use(protect);
 
-// Read-side: both Admin and Manager (analytics, leaves list/approve/reject,
-// attendance reports, user list). Write-side restrictions on /users live in
-// adminUserRoutes (POST/PATCH/DELETE require Admin).
+// Admin+Manager: analytics, leaves, attendance, user list
 router.use('/users', restrictTo('Admin', 'Manager'), adminUserRoutes);
 router.use('/attendance', restrictTo('Admin', 'Manager'), adminAttendanceRoutes);
 router.use('/leaves', restrictTo('Admin', 'Manager'), adminLeaveRoutes);
 router.use('/analytics', restrictTo('Admin', 'Manager'), adminAnalyticsRoutes);
+
+// OT: Manager only (controller double-checks internally)
+router.use('/ot', restrictTo('Manager'), adminOTRoutes);
 
 module.exports = router;

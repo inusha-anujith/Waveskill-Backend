@@ -28,7 +28,16 @@ const userSchema = new mongoose.Schema({
         name: { type: String },
         level: { type: String, enum: ['Beginner', 'Intermediate', 'Advanced', 'Expert'] },
         percentage: { type: Number }
-    }]
+    }],
+    maritalStatus: {
+        type: String,
+        enum: ['Single', 'Married', 'Divorced', 'Widowed']
+    },
+    cvUpdateStatus: {
+        type: String,
+        enum: ['Up to Date', 'Needs Update', 'Pending Review'],
+        default: 'Needs Update'
+    }
 }, { timestamps: true });
 
 // --- THE MISSING FUNCTIONS WE NEED TO RESTORE ---

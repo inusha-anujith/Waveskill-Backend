@@ -1,97 +1,107 @@
 const Project = require('../models/projectModel');
 
-// @desc    Create a new project (Usually for managers, but we need it for testing!)
-// @route   POST /api/projects
+// GET /api/projects — all projects (Manager only)
+const getAllProjects = async (req, res) => {
+    try {
+        const projects = await Project.find()
+            .populate('team.user', 'name')
+            .sort({ createdAt: -1 });
+        res.status(200).json({ success: true, data: projects });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// POST /api/projects — create project (Manager only)
 const createProject = async (req, res) => {
     try {
-        const project = await Project.create(req.body);
+        const { title, overview, priority, status, progress, team, dueDate } = req.body;
+        if (!title) return res.status(400).json({ success: false, message: 'Title is required' });
+        const project = await Project.create({ title, overview, priority, status, progress, team, dueDate });
+        await project.populate('team.user', 'name');
         res.status(201).json({ success: true, data: project });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Get logged-in user's projects and calculate dashboard stats
-// @route   GET /api/projects/me
+// GET /api/projects/me — projects the logged-in user belongs to
 const getMyProjects = async (req, res) => {
     try {
         const userId = req.user._id;
-
-        // Find all projects where this user is inside the "team" array
         const projects = await Project.find({ 'team.user': userId })
-            .populate('team.user', 'name') // Pulls the actual names of team members for your UI
+            .populate('team.user', 'name')
             .sort({ createdAt: -1 });
-
-        // Calculate the summary stats for your 3 UI cards at the bottom!
-        const totalProjects = projects.length;
-        const activeProjects = projects.filter(p => p.status === 'Active').length;
-        const completedProjects = projects.filter(p => p.status === 'Completed').length;
 
         res.status(200).json({
             success: true,
             stats: {
-                total: totalProjects,
-                active: activeProjects,
-                completed: completedProjects
+                total: projects.length,
+                active: projects.filter(p => p.status === 'Active').length,
+                completed: projects.filter(p => p.status === 'Completed').length,
             },
-            projects // This array feeds your main Project Cards and the expansion view
+            projects,
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Update Project Progress and Status (from the right-side panels)
-// @route   PUT /api/projects/:id
+// PUT /api/projects/:id — update project (Manager only)
 const updateProject = async (req, res) => {
     try {
-        const projectId = req.params.id;
-        const { progress, status } = req.body; // Data sent from your slider and dropdown
+        const { title, overview, priority, status, progress, team, dueDate } = req.body;
+        const update = {};
+        if (title !== undefined) update.title = title;
+        if (overview !== undefined) update.overview = overview;
+        if (priority !== undefined) update.priority = priority;
+        if (status !== undefined) update.status = status;
+        if (progress !== undefined) update.progress = progress;
+        if (team !== undefined) update.team = team;
+        if (dueDate !== undefined) update.dueDate = dueDate;
 
-        // Find the project and update it
         const project = await Project.findByIdAndUpdate(
-            projectId,
-            { progress, status },
+            req.params.id,
+            update,
             { new: true, runValidators: true }
-        );
+        ).populate('team.user', 'name');
 
-        if (!project) {
-            return res.status(404).json({ success: false, message: 'Project not found' });
-        }
-
+        if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
         res.status(200).json({ success: true, data: project });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Update a specific Task's status (To Do, In Progress, Done)
-// @route   PUT /api/projects/:projectId/tasks/:taskId
+// DELETE /api/projects/:id — delete project (Manager only)
+const deleteProject = async (req, res) => {
+    try {
+        const project = await Project.findByIdAndDelete(req.params.id);
+        if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
+        res.status(200).json({ success: true, message: 'Project deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// PUT /api/projects/:projectId/tasks/:taskId
 const updateTaskStatus = async (req, res) => {
     try {
         const { projectId, taskId } = req.params;
-        const { status } = req.body; // e.g., "Done"
+        const { status } = req.body;
 
         const project = await Project.findById(projectId);
-        
-        if (!project) {
-            return res.status(404).json({ success: false, message: 'Project not found' });
-        }
+        if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 
-        // Find the specific task inside the project's task array
         const task = project.tasks.id(taskId);
-        if (!task) {
-            return res.status(404).json({ success: false, message: 'Task not found' });
-        }
+        if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
 
-        // Update the task status and save the whole project
         task.status = status;
         await project.save();
-
         res.status(200).json({ success: true, data: project });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-module.exports = { createProject, getMyProjects, updateProject, updateTaskStatus };
+module.exports = { getAllProjects, createProject, getMyProjects, updateProject, deleteProject, updateTaskStatus };
