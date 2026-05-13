@@ -9,6 +9,7 @@ const leaveRoutes = require('./routes/leaveRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const profileRoutes = require('./routes/profileRoutes');
+const otRoutes = require('./routes/otRoutes');
 const adminRoutes = require('./routes/admin');
 
 const app = express();
@@ -25,6 +26,7 @@ app.use('/api/leave', leaveRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/ot', otRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Base route test
