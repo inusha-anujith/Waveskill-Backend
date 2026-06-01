@@ -3,15 +3,15 @@ const cors = require('cors');
 const app = require('./src/app');
 const connectDB = require('./src/config/db');
 
-// 1. ⚙️ CORS සක්‍රීය කිරීම (Front-end එකෙන් requests ගන්න අවසර දීම)
-// මේක අනිවාර්යයෙන්ම routes වලට ඉහළින් තිබිය යුතුයි!
+// 1. Enable CORS (Allow requests from the frontend)
+// This must be placed before defining the routes!
 app.use(cors());
 
-// 2. 🔀 Customer Routes සම්බන්ධ කිරීම
+// 2. Connect Customer Routes
 const customerRoutes = require('./src/routes/customerRoutes');
 app.use('/api/customer', customerRoutes);
 
-// 3. 💾 Connect to MongoDB
+// 3. Connect to MongoDB
 connectDB();
 
 const PORT = process.env.PORT || 5001;
