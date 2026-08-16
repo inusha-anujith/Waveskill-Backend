@@ -1,9 +1,7 @@
 const Attendance = require('../models/attendanceModel');
 
-// Helper function to format date as YYYY-MM-DD for your local timezone
 const getTodayDateString = () => {
     const today = new Date();
-    // Adjusting for local time (Sri Lanka is UTC+5:30, but keeping it simple for server time)
     return today.toISOString().split('T')[0]; 
 };
 
@@ -11,27 +9,24 @@ const getTodayDateString = () => {
 // @route   POST /api/attendance/checkin
 const checkIn = async (req, res) => {
     try {
-        const userId = req.user._id; // Gotten from your auth middleware!
+        const userId = req.user._id; 
         const dateString = getTodayDateString();
         const now = new Date();
 
-        // 1. Check if they already checked in today
         const existingAttendance = await Attendance.findOne({ user: userId, dateString });
         if (existingAttendance) {
             return res.status(400).json({ success: false, message: 'You have already checked in today!' });
         }
 
-        // 2. Determine if they are Late (Assuming 9:00 AM is the cutoff)
-        // We extract the hours and minutes of the current time
+        // Determine if Late (After 09:30)
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
         
         let status = 'Present';
-        if (currentHour > 9 || (currentHour === 9 && currentMinute > 0)) {
+        if (currentHour > 9 || (currentHour === 9 && currentMinute > 30)) {
             status = 'Late';
         }
 
-        // 3. Save the Check In record
         const attendance = await Attendance.create({
             user: userId,
             dateString,
@@ -53,7 +48,6 @@ const checkOut = async (req, res) => {
         const dateString = getTodayDateString();
         const now = new Date();
 
-        // 1. Find today's check-in record
         const attendance = await Attendance.findOne({ user: userId, dateString });
 
         if (!attendance) {
@@ -63,19 +57,30 @@ const checkOut = async (req, res) => {
             return res.status(400).json({ success: false, message: 'You have already checked out today!' });
         }
 
-        // 2. Calculate total work hours
         const checkInTime = new Date(attendance.checkIn);
-        const diffInMilliseconds = now - checkInTime;
         
-        // Convert milliseconds into Hours and Minutes
+        // Calculate total work hours
+        const diffInMilliseconds = now - checkInTime;
         const diffInMinutes = Math.floor(diffInMilliseconds / (1000 * 60));
         const hours = Math.floor(diffInMinutes / 60);
         const minutes = diffInMinutes % 60;
-
-        // Format to match your UI (e.g., "9h 0m")
         attendance.workHours = `${hours}h ${minutes}m`;
-        attendance.checkOut = now;
 
+        // Calculate OT Hours (Time past 17:30)
+        const otThreshold = new Date(now);
+        otThreshold.setHours(17, 30, 0, 0);
+
+        if (now > otThreshold) {
+            const otStart = checkInTime > otThreshold ? checkInTime : otThreshold;
+            const otDiffMins = Math.floor((now - otStart) / (1000 * 60));
+            const otHours = Math.floor(otDiffMins / 60);
+            const otMins = otDiffMins % 60;
+            attendance.otHours = `${otHours}h ${otMins}m`;
+        } else {
+            attendance.otHours = '0h 0m';
+        }
+
+        attendance.checkOut = now;
         await attendance.save();
 
         res.status(200).json({ success: true, data: attendance });
@@ -89,16 +94,11 @@ const checkOut = async (req, res) => {
 const getMyAttendance = async (req, res) => {
     try {
         const userId = req.user._id;
-
-        // Fetch all records for this user, sorted by newest first
         const history = await Attendance.find({ user: userId }).sort({ createdAt: -1 });
 
-        // Calculate the summary stats for your UI boxes!
         const totalDays = history.length;
         const presentCount = history.filter(record => record.status === 'Present').length;
         const lateCount = history.filter(record => record.status === 'Late').length;
-        // Absent logic usually requires a separate cron job or admin entry, 
-        // so we default to 0 here to fit the UI design for now.
         const absentCount = history.filter(record => record.status === 'Absent').length;
 
         res.status(200).json({
@@ -109,7 +109,7 @@ const getMyAttendance = async (req, res) => {
                 late: lateCount,
                 absent: absentCount
             },
-            history // This array feeds exactly into your UI table!
+            history 
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
