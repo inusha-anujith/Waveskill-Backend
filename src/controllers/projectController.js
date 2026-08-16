@@ -1,4 +1,6 @@
 const Project = require('../models/projectModel');
+// [LEARNING NOTE]: Imported User model here as well so we can track project activities!
+const User = require('../models/userModel'); 
 
 // GET /api/projects — all projects (Manager only)
 const getAllProjects = async (req, res) => {
@@ -50,7 +52,10 @@ const getMyProjects = async (req, res) => {
 // PUT /api/projects/:id — update project (Manager only)
 const updateProject = async (req, res) => {
     try {
+        const projectId = req.params.id;
         const { title, overview, priority, status, progress, team, dueDate } = req.body;
+        const userId = req.user._id; // [LEARNING NOTE]: Extracting userId to know WHO made the edit
+
         const update = {};
         if (title !== undefined) update.title = title;
         if (overview !== undefined) update.overview = overview;
@@ -61,12 +66,25 @@ const updateProject = async (req, res) => {
         if (dueDate !== undefined) update.dueDate = dueDate;
 
         const project = await Project.findByIdAndUpdate(
-            req.params.id,
+            projectId,
             update,
             { new: true, runValidators: true }
         ).populate('team.user', 'name');
 
         if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
+
+        // [LEARNING NOTE]: Log the overall project update
+        if (status) {
+            await User.findByIdAndUpdate(userId, {
+                $push: {
+                    activities: {
+                        $each: [{ action: `Updated project status to ${status}`, date: new Date() }],
+                        $position: 0
+                    }
+                }
+            });
+        }
+
         res.status(200).json({ success: true, data: project });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -88,7 +106,8 @@ const deleteProject = async (req, res) => {
 const updateTaskStatus = async (req, res) => {
     try {
         const { projectId, taskId } = req.params;
-        const { status } = req.body;
+        const { status } = req.body; // e.g., "Done"
+        const userId = req.user._id; // [LEARNING NOTE]: Grabbing the user ID here too!
 
         const project = await Project.findById(projectId);
         if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
@@ -98,6 +117,17 @@ const updateTaskStatus = async (req, res) => {
 
         task.status = status;
         await project.save();
+
+        // [LEARNING NOTE]: Log the specific task update. We use task.title to be precise!
+        await User.findByIdAndUpdate(userId, {
+            $push: {
+                activities: {
+                    $each: [{ action: `Updated task '${task.title || 'Task'}' to ${status}`, date: new Date() }],
+                    $position: 0
+                }
+            }
+        });
+
         res.status(200).json({ success: true, data: project });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
