@@ -1,8 +1,9 @@
 const express = require('express');
-const cors = require('cors'); // <-- 1. CORS is imported here
+const cors = require('cors');
 
-// All your route imports
+// All Route Imports (Your Customer routes + Team routes)
 const employeeRoutes = require('./routes/employeeRoutes');
+const customerRoutes = require('./routes/customerRoutes'); // Customer routes
 const userRoutes = require('./routes/userRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const leaveRoutes = require('./routes/leaveRoutes');
@@ -14,12 +15,18 @@ const adminRoutes = require('./routes/admin');
 
 const app = express();
 
-// Middleware
-app.use(cors()); // <-- 2. CORS is enabled here (The Bridge is open!)
+// Enable CORS
+app.use(cors({
+    origin: '*',
+    credentials: true
+}));
+
+// Middleware to parse JSON
 app.use(express.json());
 
-// Mounting all your routes
+// Mounting All Routes
 app.use('/api/employees', employeeRoutes);
+app.use('/api/customers', customerRoutes); // Customer API Endpoint
 app.use('/api/users', userRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/leave', leaveRoutes);
