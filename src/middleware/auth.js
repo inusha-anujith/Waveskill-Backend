@@ -1,9 +1,10 @@
 const jwt = require('jsonwebtoken');
+const User = require('../models/userModel');
 
+// 1. Customer Authentication Middleware (Your Code)
 const verifyToken = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
-    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ message: 'Authorization denied. No token provided.' });
     }
@@ -19,4 +20,41 @@ const verifyToken = (req, res, next) => {
     }
 };
 
-module.exports = verifyToken;
+// 2. System User Authentication Middleware (Develop Branch Code)
+const protect = async (req, res, next) => {
+    let token;
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            token = req.headers.authorization.split(' ')[1];
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            req.user = await User.findById(decoded.id).select('-password');
+            return next();
+        } catch (error) {
+            console.error(error);
+            return res.status(401).json({ success: false, message: 'Not authorized, token failed' });
+        }
+    }
+
+    if (!token) {
+        return res.status(401).json({ success: false, message: 'Not authorized, no token provided' });
+    }
+};
+
+// 3. Role Guard Middleware (Develop Branch Code)
+const restrictTo = (...roles) => (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+        return res.status(403).json({
+            success: false,
+            message: `Forbidden: requires role ${roles.join(' or ')}`
+        });
+    }
+    next();
+};
+
+// Export all middlewares
+module.exports = { 
+    verifyToken, 
+    protect, 
+    restrictTo 
+};

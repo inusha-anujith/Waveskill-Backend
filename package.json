@@ -1,4 +1,15 @@
 {
+  "name": "waveskill_hrs_backend",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "seed": "node scripts/seedAdmin.js",
+    "seed:users": "node scripts/seedUsers.js",
+    "seed:leaves": "node scripts/seedLeaves.js",
+    "seed:attendance": "node scripts/seedAttendance.js",
+    "seed:all": "node scripts/seedDemo.js"
+  },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
@@ -7,5 +18,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.4"
+    "mongoose": "^9.2.4",
+    "node-cron": "^4.6.0"
   }
 }

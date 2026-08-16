@@ -15,7 +15,7 @@ mongoose.connect(MONGO_URI).then(async () => {
   const user1 = await Customer.create({
     firstName: 'Kaushalya',
     lastName: 'Developer',
-    email: 'kaushalya@test.com',
+    email: 'kaushalya@gmail.com',
     password: 'kaushalya123',
     phone: '+94 77 123 4567',
     companyName: 'Waveskill Solutions Ltd',
@@ -29,8 +29,8 @@ mongoose.connect(MONGO_URI).then(async () => {
   const user2 = await Customer.create({
     firstName: 'Frank',
     lastName: 'Castle',
-    email: 'frank@test.com',
-    password: 'frank999',
+    email: 'frank@gmail.com',
+    password: 'frank222',
     phone: '+1 212 555 0199',
     companyName: 'Castle Industries Inc',
     corporateWebsite: 'https://castleindustries.com',

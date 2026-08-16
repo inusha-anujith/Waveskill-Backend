@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 
-// Import the controller functions
 const {
     createEmployee,
     getAllEmployees,
@@ -10,19 +9,16 @@ const {
     deleteEmployee
 } = require('../controllers/employeeController');
 
-// Optional: Import your auth middleware here when you're ready to secure these routes
-// const { protect } = require('../middleware/auth');
+const { protect, restrictTo } = require('../middleware/auth');
 
-// Map routes to controller functions
-// For example: router.route('/').post(protect, createEmployee).get(protect, getAllEmployees);
-
+// GET is open to all authenticated users; mutations are Admin-only
 router.route('/')
-    .get(getAllEmployees)
-    .post(createEmployee);
+    .get(protect, getAllEmployees)
+    .post(protect, restrictTo('Admin'), createEmployee);
 
 router.route('/:id')
-    .get(getEmployeeById)
-    .put(updateEmployee)
-    .delete(deleteEmployee);
+    .get(protect, getEmployeeById)
+    .put(protect, restrictTo('Admin'), updateEmployee)
+    .delete(protect, restrictTo('Admin'), deleteEmployee);
 
 module.exports = router;
