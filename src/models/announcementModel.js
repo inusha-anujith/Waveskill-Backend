@@ -9,15 +9,19 @@ const announcementSchema = new mongoose.Schema({
         type: String, 
         required: true 
     },
-    // This enum perfectly matches the badges and summary boxes in your UI
-    priority: { 
-        type: String, 
-        enum: ['Urgent', 'Important', 'Normal'], 
-        default: 'Normal' 
+    priority: {
+        type: String,
+        enum: ['Urgent', 'Important', 'Normal'],
+        default: 'Normal'
     },
-    // This links to the Admin who created it so we can display "Posted by Admin User"
-    postedBy: { 
-        type: mongoose.Schema.Types.ObjectId, 
+    // 'system' = created by Admin (company-wide); 'project' = created by Manager (team-level)
+    type: {
+        type: String,
+        enum: ['system', 'project'],
+        default: 'system'
+    },
+    postedBy: {
+        type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
     }

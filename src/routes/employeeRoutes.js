@@ -9,17 +9,16 @@ const {
     deleteEmployee
 } = require('../controllers/employeeController');
 
-// Import your new security middleware
-const { protect } = require('../middleware/auth');
+const { protect, restrictTo } = require('../middleware/auth');
 
-// Add "protect" right before the controller function on any route you want to secure
+// GET is open to all authenticated users; mutations are Admin-only
 router.route('/')
     .get(protect, getAllEmployees)
-    .post(protect, createEmployee);
+    .post(protect, restrictTo('Admin'), createEmployee);
 
 router.route('/:id')
     .get(protect, getEmployeeById)
-    .put(protect, updateEmployee)
-    .delete(protect, deleteEmployee);
+    .put(protect, restrictTo('Admin'), updateEmployee)
+    .delete(protect, restrictTo('Admin'), deleteEmployee);
 
 module.exports = router;

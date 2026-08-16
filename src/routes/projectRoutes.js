@@ -2,18 +2,24 @@ const express = require('express');
 const router = express.Router();
 
 const {
+    getAllProjects,
     getMyProjects,
+    createProject,
     updateProject,
+    deleteProject,
     updateTaskStatus,
-    createProject // <-- Our new testing function!
 } = require('../controllers/projectController');
 
-const { protect } = require('../middleware/auth');
+const { protect, restrictTo } = require('../middleware/auth');
 
-// The Routes!
-router.post('/', protect, createProject); // To make a project
-router.get('/me', protect, getMyProjects); // To get your dashboard stats
-router.put('/:id', protect, updateProject); // To update progress/status
-router.put('/:projectId/tasks/:taskId', protect, updateTaskStatus); // To check off tasks
+// Manager-only: full CRUD on all projects
+router.get('/', protect, restrictTo('Manager'), getAllProjects);
+router.post('/', protect, restrictTo('Manager'), createProject);
+router.put('/:id', protect, restrictTo('Manager'), updateProject);
+router.delete('/:id', protect, restrictTo('Manager'), deleteProject);
+
+// Any authenticated user: their own projects + task updates
+router.get('/me', protect, getMyProjects);
+router.put('/:projectId/tasks/:taskId', protect, updateTaskStatus);
 
 module.exports = router;

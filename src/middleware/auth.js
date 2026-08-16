@@ -30,4 +30,15 @@ const protect = async (req, res, next) => {
     }
 };
 
-module.exports = { protect };
+// Role guard. Use after `protect`. Example: restrictTo('Admin', 'Manager')
+const restrictTo = (...roles) => (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+        return res.status(403).json({
+            success: false,
+            message: `Forbidden: requires role ${roles.join(' or ')}`
+        });
+    }
+    next();
+};
+
+module.exports = { protect, restrictTo };

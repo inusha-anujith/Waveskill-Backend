@@ -41,14 +41,26 @@ const userSchema = new mongoose.Schema({
     
     skills: [{
         name: { type: String },
-        level: { type: String, enum: ['Beginner', 'Intermediate', 'Advanced', 'Expert'] }
+        level: { type: String, enum: ['Beginner', 'Intermediate', 'Advanced', 'Expert'] },
+        percentage: { type: Number }
     }],
     
     // [LEARNING NOTE]: This array acts as a historical log. Newest items go to the top.
     activities: [{
         action: { type: String },
         date: { type: Date, default: Date.now }
-    }]
+    }],
+    
+    maritalStatus: {
+        type: String,
+        enum: ['Single', 'Married', 'Divorced', 'Widowed']
+    },
+    
+    cvUpdateStatus: {
+        type: String,
+        enum: ['Up to Date', 'Needs Update', 'Pending Review'],
+        default: 'Needs Update'
+    }
 }, { timestamps: true });
 
 // [LEARNING NOTE]: Automatically hashes the password before saving a new user to the DB
