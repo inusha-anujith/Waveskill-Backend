@@ -1,31 +1,19 @@
 const express = require('express');
-const cors = require('cors'); // <-- 1. CORS is imported here
-
-// All your route imports
 const employeeRoutes = require('./routes/employeeRoutes');
-const userRoutes = require('./routes/userRoutes');
-const attendanceRoutes = require('./routes/attendanceRoutes');
-const leaveRoutes = require('./routes/leaveRoutes');
-const projectRoutes = require('./routes/projectRoutes');
-const announcementRoutes = require('./routes/announcementRoutes');
-const profileRoutes = require('./routes/profileRoutes');
+// You can import userRoutes here later: const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
-// Middleware
-app.use(cors()); // <-- 2. CORS is enabled here (The Bridge is open!)
+// Middleware to parse incoming JSON payloads (from your frontend)
 app.use(express.json());
 
-// Mounting all your routes
+// Mount the routes
+// Any request starting with /api/employees will be handled by employeeRoutes
 app.use('/api/employees', employeeRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/attendance', attendanceRoutes);
-app.use('/api/leave', leaveRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/announcements', announcementRoutes);
-app.use('/api/profile', profileRoutes);
 
-// Base route test
+// You can mount user routes here later: app.use('/api/users', userRoutes);
+
+// A simple base route to verify the API is running
 app.get('/', (req, res) => {
     res.send('Waveskill HR API is running...');
 });
