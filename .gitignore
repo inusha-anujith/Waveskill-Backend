@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Environment variables 
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Seed or Temporary Scripts
+cleanProjects.js
+
+# IDE & System Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

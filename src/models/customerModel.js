@@ -1,56 +1,16 @@
 const mongoose = require('mongoose');
 
 const customerSchema = new mongoose.Schema({
-  firstName: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  lastName: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true,
-    lowercase: true
-  },
-  phone: {
-    type: String,
-    default: ""
-  },
-  password: {
-    type: String,
-    required: true
-  },
-  // Company Information
-  companyName: {
-    type: String,
-    default: ""
-  },
-  website: {
-    type: String,
-    default: ""
-  },
-  address: {
-    type: String,
-    default: ""
-  },
-  // System Tracking Status for UI requirements
-  status: {
-    type: String,
-    default: "Active Client"
-  },
-  location: {
-    type: String,
-    default: "Colombo, Sri Lanka"
-  }
-}, {
-  // Automatically creates createdAt and updatedAt fields
-  timestamps: true 
-});
+    firstName: { type: String, required: true },
+    lastName: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    companyName: { type: String, default: '' },
+    corporateWebsite: { type: String, default: '' },
+    headquartersAddress: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    status: { type: String, default: 'ACTIVE CLIENT' },
+    country: { type: String, default: 'Colombo, Sri Lanka' }
+}, { timestamps: true });
 
 module.exports = mongoose.model('Customer', customerSchema);
