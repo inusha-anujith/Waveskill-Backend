@@ -8,7 +8,7 @@ const cron = require('node-cron');
 const Attendance = require('./src/models/attendanceModel');
 const User = require('./src/models/userModel'); // (Make sure this path matches your user model file)
 
-// Connect to MongoDB
+// Connect Database
 connectDB();
 
 const PORT = process.env.PORT || 5001;
