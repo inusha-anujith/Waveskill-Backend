@@ -1,100 +1,165 @@
 const Attendance = require('../models/attendanceModel');
+const OTRequest = require('../models/otRequestModel');
 
 const getTodayDateString = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0]; 
+    // Get time in Sri Lanka timezone
+    const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Colombo"}));
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
 
+// ==========================================
 // @desc    Check In
 // @route   POST /api/attendance/checkin
+// ==========================================
 const checkIn = async (req, res) => {
     try {
         const userId = req.user._id; 
         const dateString = getTodayDateString();
-        const now = new Date();
+        const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Colombo"}));
 
         const existingAttendance = await Attendance.findOne({ user: userId, dateString });
-        if (existingAttendance) {
-            return res.status(400).json({ success: false, message: 'You have already checked in today!' });
+        if (existingAttendance) return res.status(400).json({ success: false, message: 'You have already checked in today!' });
+
+        // [NEW]: Weekend Check-In Validation
+        const dayOfWeek = now.getDay();
+        const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+
+        if (isWeekend) {
+            const approvedOT = await OTRequest.findOne({ user: userId, date: new Date(dateString), status: 'Approved' });
+            if (!approvedOT) {
+                const dayName = dayOfWeek === 0 ? 'Sunday' : 'Saturday';
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `You haven't requested OT for this ${dayName}. You must apply for an OT request and have it approved before checking in.` 
+                });
+            }
         }
 
-        // Determine if Late (After 09:30)
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
-        
         let status = 'Present';
-        if (currentHour > 9 || (currentHour === 9 && currentMinute > 30)) {
-            status = 'Late';
-        }
+        if (currentHour > 9 || (currentHour === 9 && currentMinute > 30)) status = 'Late';
 
-        const attendance = await Attendance.create({
-            user: userId,
-            dateString,
-            checkIn: now,
-            status
-        });
-
+        const attendance = await Attendance.create({ user: userId, dateString, checkIn: now, status });
         res.status(201).json({ success: true, data: attendance });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
+    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
 
+// ==========================================
 // @desc    Check Out
 // @route   PUT /api/attendance/checkout
+// ==========================================
 const checkOut = async (req, res) => {
     try {
         const userId = req.user._id;
         const dateString = getTodayDateString();
-        const now = new Date();
+        const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Colombo"}));
 
         const attendance = await Attendance.findOne({ user: userId, dateString });
+        if (!attendance) return res.status(400).json({ success: false, message: 'You have not checked in today!' });
+        if (attendance.checkOut) return res.status(400).json({ success: false, message: 'You have already checked out today!' });
 
-        if (!attendance) {
-            return res.status(400).json({ success: false, message: 'You have not checked in today!' });
+        const approvedOT = await OTRequest.findOne({ user: userId, date: new Date(dateString), status: 'Approved' });
+        
+        let maxAllowedTime = new Date(attendance.checkIn);
+        maxAllowedTime.setHours(17, 30, 0, 0);
+
+        if (approvedOT) {
+            maxAllowedTime = new Date(maxAllowedTime.getTime() + (approvedOT.otHours * 60 * 60 * 1000));
         }
-        if (attendance.checkOut) {
-            return res.status(400).json({ success: false, message: 'You have already checked out today!' });
-        }
+
+        const actualCheckOut = now > maxAllowedTime ? maxAllowedTime : now;
+        attendance.checkOut = actualCheckOut;
 
         const checkInTime = new Date(attendance.checkIn);
+        const standardEnd = actualCheckOut > maxAllowedTime && !approvedOT ? maxAllowedTime : actualCheckOut; 
         
-        // Calculate total work hours
-        const diffInMilliseconds = now - checkInTime;
-        const diffInMinutes = Math.floor(diffInMilliseconds / (1000 * 60));
-        const hours = Math.floor(diffInMinutes / 60);
-        const minutes = diffInMinutes % 60;
-        attendance.workHours = `${hours}h ${minutes}m`;
-
-        // Calculate OT Hours (Time past 17:30)
-        const otThreshold = new Date(now);
-        otThreshold.setHours(17, 30, 0, 0);
-
-        if (now > otThreshold) {
-            const otStart = checkInTime > otThreshold ? checkInTime : otThreshold;
-            const otDiffMins = Math.floor((now - otStart) / (1000 * 60));
-            const otHours = Math.floor(otDiffMins / 60);
-            const otMins = otDiffMins % 60;
-            attendance.otHours = `${otHours}h ${otMins}m`;
+        const diffMins = Math.floor((standardEnd - checkInTime) / (1000 * 60));
+        attendance.workHours = `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`;
+        
+        if (approvedOT && actualCheckOut > new Date(attendance.checkIn).setHours(17,30,0,0)) {
+            const otStart = new Date(attendance.checkIn).setHours(17,30,0,0);
+            const otDiff = Math.floor((actualCheckOut - otStart) / (1000 * 60));
+            attendance.otHours = `${Math.floor(otDiff / 60)}h ${otDiff % 60}m`;
         } else {
             attendance.otHours = '0h 0m';
         }
-
-        attendance.checkOut = now;
+        
         await attendance.save();
-
         res.status(200).json({ success: true, data: attendance });
+    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+};
+
+// ==========================================
+// @desc    Submit an Overtime (OT) Request
+// @route   POST /api/attendance/ot-request
+// ==========================================
+const requestOT = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { dateString, otHours, reason } = req.body;
+
+        if (!otHours || !reason) return res.status(400).json({ success: false, message: 'Please provide hours and a reason.' });
+
+        const targetDate = new Date(dateString);
+        const existingReq = await OTRequest.findOne({ user: userId, date: targetDate });
+        if (existingReq) return res.status(400).json({ success: false, message: 'You have already submitted an OT request for this date.' });
+
+        const newOTRequest = await OTRequest.create({
+            user: userId, date: targetDate, otHours: Number(otHours), reason, status: 'Pending'
+        });
+
+        res.status(201).json({ success: true, data: newOTRequest });
+    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+};
+
+// ==========================================
+// @desc    Cancel a Pending OT Request
+// @route   DELETE /api/attendance/ot-request/:id
+// ==========================================
+const cancelOTRequest = async (req, res) => {
+    try {
+        const request = await OTRequest.findById(req.params.id);
+        if (!request) return res.status(404).json({ success: false, message: 'OT Request not found' });
+        
+        if (request.user.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Unauthorized action' });
+        }
+        
+        if (request.status !== 'Pending') {
+            return res.status(400).json({ success: false, message: 'You cannot cancel an OT request that has already been processed.' });
+        }
+
+        await request.deleteOne();
+        res.status(200).json({ success: true, message: 'OT Request cancelled successfully' });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Get logged-in user's attendance history and stats
+// ==========================================
+// @desc    Get attendance history and stitch with OT Requests
 // @route   GET /api/attendance/me
+// ==========================================
 const getMyAttendance = async (req, res) => {
     try {
         const userId = req.user._id;
         const history = await Attendance.find({ user: userId }).sort({ createdAt: -1 });
+        const otRequests = await OTRequest.find({ user: userId });
+
+        const historyWithOT = history.map(record => {
+            const recordObj = record.toObject();
+            const matchedOT = otRequests.find(ot => ot.date.toISOString().split('T')[0] === recordObj.dateString);
+            recordObj.otRequest = matchedOT || null;
+            return recordObj;
+        });
+
+        // [NEW]: Explicitly find today's OT request, even if they haven't checked in yet!
+        const todayStr = getTodayDateString();
+        const todayOT = otRequests.find(ot => ot.date.toISOString().split('T')[0] === todayStr) || null;
 
         const totalDays = history.length;
         const presentCount = history.filter(record => record.status === 'Present').length;
@@ -103,17 +168,11 @@ const getMyAttendance = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            stats: {
-                totalDays,
-                present: presentCount,
-                late: lateCount,
-                absent: absentCount
-            },
-            history 
+            stats: { totalDays, present: presentCount, late: lateCount, absent: absentCount },
+            history: historyWithOT,
+            todayOT: todayOT // Sent to frontend so it knows the status before check-in
         });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
+    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
 
-module.exports = { checkIn, checkOut, getMyAttendance };
+module.exports = { checkIn, checkOut, requestOT, cancelOTRequest, getMyAttendance };

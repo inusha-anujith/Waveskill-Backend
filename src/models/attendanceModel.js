@@ -1,34 +1,20 @@
 const mongoose = require('mongoose');
 
 const attendanceSchema = new mongoose.Schema({
-    user: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'User', 
-        required: true 
-    },
-    dateString: { 
-        type: String, 
-        required: true 
-    },
-    checkIn: { 
-        type: Date 
-    },
-    checkOut: { 
-        type: Date 
-    },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    dateString: { type: String, required: true },
+    checkIn: { type: Date },
+    checkOut: { type: Date },
     status: { 
         type: String, 
-        enum: ['Present', 'Late', 'Absent'], 
+        // [UPDATE]: Added 'Holiday' to the allowed list of statuses
+        enum: ['Present', 'Late', 'Absent', 'Holiday'], 
         default: 'Present' 
     },
-    workHours: {
-        type: String,
-        default: '0h 0m'
-    },
-    otHours: { // <-- NEW FIELD FOR OT
-        type: String,
-        default: '0h 0m'
-    }
+    workHours: { type: String, default: '0h 0m' },
+    otHours: { type: String, default: '0h 0m' },
+    // [NEW]: Field to store the holiday name or automated system notes
+    notes: { type: String } 
 }, { timestamps: true });
 
 module.exports = mongoose.model('Attendance', attendanceSchema);

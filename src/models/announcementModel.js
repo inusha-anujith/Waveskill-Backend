@@ -14,7 +14,6 @@ const announcementSchema = new mongoose.Schema({
         enum: ['Urgent', 'Important', 'Normal'],
         default: 'Normal'
     },
-    // 'system' = created by Admin (company-wide); 'project' = created by Manager (team-level)
     type: {
         type: String,
         enum: ['system', 'project'],
@@ -24,7 +23,12 @@ const announcementSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
-    }
-}, { timestamps: true }); // Automatically gives us the date it was posted!
+    },
+    // [NEW]: Array to track which users have read this announcement
+    readBy: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }]
+}, { timestamps: true });
 
 module.exports = mongoose.model('Announcement', announcementSchema);

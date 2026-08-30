@@ -4,16 +4,20 @@ const router = express.Router();
 const {
     checkIn,
     checkOut,
+    requestOT,
+    cancelOTRequest, // [NEW] Import the new function
     getMyAttendance
 } = require('../controllers/attendanceController');
 
-// Import your security middleware!
 const { protect } = require('../middleware/auth');
 
-// Apply the protect middleware to all attendance routes
-// because the controller needs to know WHO is checking in (req.user)
 router.post('/checkin', protect, checkIn);
 router.put('/checkout', protect, checkOut);
+
+router.post('/ot-request', protect, requestOT); 
+// [NEW] Allow users to cancel their pending requests
+router.delete('/ot-request/:id', protect, cancelOTRequest); 
+
 router.get('/me', protect, getMyAttendance);
 
 module.exports = router;

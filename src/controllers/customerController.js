@@ -1,11 +1,14 @@
 const Customer = require('../models/CustomerModel');
 const Project = require('../models/ProjectModel');
 const jwt = require('jsonwebtoken');
+// [FIX]: Import bcrypt to securely compare the hashed passwords
+const bcrypt = require('bcryptjs'); 
 
-
+// ==========================================
+// 1. Get Customer Profile
+// ==========================================
 exports.getCustomerProfile = async (req, res) => {
   try {
-    
     const customerId = req.customer?.id || req.user?.id;
 
     const customer = await Customer.findById(customerId).select('-password');
@@ -18,7 +21,9 @@ exports.getCustomerProfile = async (req, res) => {
   }
 };
 
+// ==========================================
 // 2. Get Customer Projects & Stats
+// ==========================================
 exports.getCustomerProjects = async (req, res) => {
   try {
     const customerId = req.customer?.id || req.user?.id;
@@ -42,16 +47,26 @@ exports.getCustomerProjects = async (req, res) => {
   }
 };
 
-// Login Controller
+// ==========================================
+// 3. Login Customer
+// ==========================================
 exports.loginCustomer = async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    // Step 1: Find the customer by email
     const customer = await Customer.findOne({ email });
-
-    if (!customer || (customer.password && customer.password !== password)) {
+    if (!customer) {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
+    // [FIX]: Step 2: Use bcrypt to mathematically compare the typed password against the database hash
+    const isMatch = await bcrypt.compare(password, customer.password);
+    if (!isMatch) {
+        return res.status(400).json({ message: 'Invalid email or password' });
+    }
+
+    // Step 3: Generate the JWT Token for the frontend
     const token = jwt.sign(
       { id: customer._id },
       process.env.JWT_SECRET || 'secret_key_123',
@@ -73,6 +88,9 @@ exports.loginCustomer = async (req, res) => {
   }
 };
 
+// ==========================================
+// 4. Request Update
+// ==========================================
 exports.requestUpdate = async (req, res) => {
   try {
     const { note } = req.body;
