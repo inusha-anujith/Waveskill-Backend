@@ -1,8 +1,8 @@
 const Attendance = require('../models/attendanceModel');
 const OTRequest = require('../models/otRequestModel');
+const Leave = require('../models/leaveModel');
 
 const getTodayDateString = () => {
-    // Get time in Sri Lanka timezone
     const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Colombo"}));
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -19,11 +19,33 @@ const checkIn = async (req, res) => {
         const userId = req.user._id; 
         const dateString = getTodayDateString();
         const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Colombo"}));
+        
+        // Convert today's dateString into a comparable Date object for the Leave query
+        const todayDateObj = new Date(dateString);
 
+        // 1. Duplicate Check
         const existingAttendance = await Attendance.findOne({ user: userId, dateString });
-        if (existingAttendance) return res.status(400).json({ success: false, message: 'You have already checked in today!' });
+        if (existingAttendance) {
+            return res.status(400).json({ success: false, message: 'You have already checked in today!' });
+        }
 
-        // [NEW]: Weekend Check-In Validation
+        // 2. [UPDATED] Leave Validation: Check if today falls between an approved startDate and endDate
+        const approvedLeave = await Leave.findOne({ 
+            user: userId, 
+            status: 'Approved',
+            startDate: { $lte: todayDateObj },
+            endDate: { $gte: todayDateObj }
+        });
+
+        if (approvedLeave) {
+            return res.status(400).json({ 
+                success: false, 
+                // Dynamically injects "Casual Leave", "Sick Leave", or "Annual Leave" into the Next.js toast notification
+                message: `Check-in blocked: You have an approved ${approvedLeave.leaveType} scheduled for today.` 
+            });
+        }
+
+        // 3. Weekend Validation
         const dayOfWeek = now.getDay();
         const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
 
@@ -38,14 +60,20 @@ const checkIn = async (req, res) => {
             }
         }
 
+        // 4. Time Calculation
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
         let status = 'Present';
-        if (currentHour > 9 || (currentHour === 9 && currentMinute > 30)) status = 'Late';
+        if (currentHour > 9 || (currentHour === 9 && currentMinute > 30)) {
+            status = 'Late';
+        }
 
+        // 5. Database Entry
         const attendance = await Attendance.create({ user: userId, dateString, checkIn: now, status });
         res.status(201).json({ success: true, data: attendance });
-    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+    } catch (error) { 
+        res.status(500).json({ success: false, message: error.message }); 
+    }
 };
 
 // ==========================================
@@ -90,7 +118,9 @@ const checkOut = async (req, res) => {
         
         await attendance.save();
         res.status(200).json({ success: true, data: attendance });
-    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+    } catch (error) { 
+        res.status(500).json({ success: false, message: error.message }); 
+    }
 };
 
 // ==========================================
@@ -105,6 +135,7 @@ const requestOT = async (req, res) => {
         if (!otHours || !reason) return res.status(400).json({ success: false, message: 'Please provide hours and a reason.' });
 
         const targetDate = new Date(dateString);
+        
         const existingReq = await OTRequest.findOne({ user: userId, date: targetDate });
         if (existingReq) return res.status(400).json({ success: false, message: 'You have already submitted an OT request for this date.' });
 
@@ -113,7 +144,9 @@ const requestOT = async (req, res) => {
         });
 
         res.status(201).json({ success: true, data: newOTRequest });
-    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+    } catch (error) { 
+        res.status(500).json({ success: false, message: error.message }); 
+    }
 };
 
 // ==========================================
@@ -147,6 +180,7 @@ const cancelOTRequest = async (req, res) => {
 const getMyAttendance = async (req, res) => {
     try {
         const userId = req.user._id;
+        
         const history = await Attendance.find({ user: userId }).sort({ createdAt: -1 });
         const otRequests = await OTRequest.find({ user: userId });
 
@@ -157,7 +191,6 @@ const getMyAttendance = async (req, res) => {
             return recordObj;
         });
 
-        // [NEW]: Explicitly find today's OT request, even if they haven't checked in yet!
         const todayStr = getTodayDateString();
         const todayOT = otRequests.find(ot => ot.date.toISOString().split('T')[0] === todayStr) || null;
 
@@ -170,9 +203,11 @@ const getMyAttendance = async (req, res) => {
             success: true,
             stats: { totalDays, present: presentCount, late: lateCount, absent: absentCount },
             history: historyWithOT,
-            todayOT: todayOT // Sent to frontend so it knows the status before check-in
+            todayOT: todayOT 
         });
-    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+    } catch (error) { 
+        res.status(500).json({ success: false, message: error.message }); 
+    }
 };
 
 module.exports = { checkIn, checkOut, requestOT, cancelOTRequest, getMyAttendance };
