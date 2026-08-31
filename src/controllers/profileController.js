@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const User = require('../models/userModel');
 const Leave = require('../models/leaveModel');
+const bcrypt = require('bcryptjs'); // [NEW]: Required to securely compare the old password
 const { CV_UPLOAD_DIR } = require('../middleware/uploadMiddleware');
 
 // @desc    Get logged in user's full profile data (Overview, Leave Balance, Skills, Emergency)
@@ -67,6 +68,41 @@ const updateProfile = async (req, res) => {
         ).select('-password');
 
         res.status(200).json({ success: true, data: updatedUser });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ==========================================
+// @desc    Change User Password
+// @route   PUT /api/profile/change-password
+// ==========================================
+const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        // 1. Verify the frontend sent both required fields
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Please provide both your current password and a new password.' });
+        }
+
+        // 2. Fetch the user. We use .select('+password') in case your User model hides it by default
+        const user = await User.findById(req.user._id).select('+password');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        // 3. Verify the current password matches the encrypted hash in the database
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ success: false, message: 'The current password you entered is incorrect.' });
+        }
+
+        // 4. Assign the new password and save (This relies on the pre('save') hook in your User model to hash it)
+        user.password = newPassword;
+        await user.save();
+
+        res.status(200).json({ success: true, message: 'Password updated successfully!' });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -144,4 +180,4 @@ const getMyCV = async (req, res) => {
     }
 };
 
-module.exports = { getMyProfile, updateProfile, uploadCV, getMyCV, sendCVFile };
+module.exports = { getMyProfile, updateProfile, changePassword, uploadCV, getMyCV, sendCVFile };
