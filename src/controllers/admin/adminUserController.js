@@ -1,4 +1,5 @@
 const User = require('../../models/userModel');
+const { sendCVFile } = require('../profileController');
 
 const ADMIN_CREATABLE_ROLES = ['Employee', 'Manager'];
 
@@ -69,10 +70,16 @@ const createUser = async (req, res) => {
 // @route   GET /api/admin/users
 const listUsers = async (req, res) => {
     try {
-        const { role, search } = req.query;
+        const { role, search, status } = req.query;
         const query = {};
 
         if (role) query.role = role;
+
+        // Records created before the status field existed have no value, so
+        // "Active" must match missing as well as explicitly Active.
+        if (status === 'Active') query.status = { $ne: 'Inactive' };
+        else if (status) query.status = status;
+
         if (search) {
             query.$or = [
                 { name: { $regex: search, $options: 'i' } },
@@ -109,7 +116,7 @@ const updateUser = async (req, res) => {
 
         // Block self-demotion of the last Admin
         if (req.body.role && user.role === 'Admin' && req.body.role !== 'Admin') {
-            const adminCount = await User.countDocuments({ role: 'Admin' });
+            const adminCount = await User.countDocuments({ role: 'Admin', status: { $ne: 'Inactive' } });
             if (adminCount <= 1) {
                 return res.status(400).json({
                     success: false,
@@ -140,32 +147,90 @@ const updateUser = async (req, res) => {
     }
 };
 
-// @desc    Delete user
-// @route   DELETE /api/admin/users/:id
-const deleteUser = async (req, res) => {
+// @desc    Deactivate a user (soft delete — the record is retained so that
+//          attendance, leave and OT history keeps resolving)
+// @route   PATCH /api/admin/users/:id/deactivate  (DELETE is kept as an alias)
+const deactivateUser = async (req, res) => {
     try {
         const user = await User.findById(req.params.id);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
         if (req.user && req.user._id.toString() === user._id.toString()) {
-            return res.status(400).json({ success: false, message: 'You cannot delete your own account' });
+            return res.status(400).json({ success: false, message: 'You cannot deactivate your own account' });
         }
 
+        if (user.status === 'Inactive') {
+            return res.status(400).json({ success: false, message: 'This account is already inactive' });
+        }
+
+        // Guard the last *active* Admin, not merely the last Admin document —
+        // otherwise deactivating every admin in turn would lock everyone out.
         if (user.role === 'Admin') {
-            const adminCount = await User.countDocuments({ role: 'Admin' });
-            if (adminCount <= 1) {
+            const activeAdmins = await User.countDocuments({
+                role: 'Admin',
+                status: { $ne: 'Inactive' }
+            });
+            if (activeAdmins <= 1) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Cannot delete the last Admin'
+                    message: 'Cannot deactivate the last active Admin'
                 });
             }
         }
 
-        await user.deleteOne();
-        res.status(200).json({ success: true, message: 'User deleted' });
+        user.status = 'Inactive';
+        user.deactivatedAt = new Date();
+        user.deactivatedBy = req.user ? req.user._id : undefined;
+        user.activities.unshift({ action: 'Account deactivated by an administrator', date: new Date() });
+        await user.save();
+
+        res.status(200).json({ success: true, message: 'User deactivated', data: sanitize(user) });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-module.exports = { createUser, listUsers, getUserById, updateUser, deleteUser };
+// @desc    Restore a previously deactivated user
+// @route   PATCH /api/admin/users/:id/reactivate
+const reactivateUser = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+        if (user.status !== 'Inactive') {
+            return res.status(400).json({ success: false, message: 'This account is already active' });
+        }
+
+        user.status = 'Active';
+        user.deactivatedAt = undefined;
+        user.deactivatedBy = undefined;
+        user.activities.unshift({ action: 'Account reactivated by an administrator', date: new Date() });
+        await user.save();
+
+        res.status(200).json({ success: true, message: 'User reactivated', data: sanitize(user) });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// @desc    Admin/Manager views a given employee's uploaded CV
+// @route   GET /api/admin/users/:id/cv
+const getUserCV = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('name cvFile');
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        return sendCVFile(res, user);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+module.exports = {
+    createUser,
+    listUsers,
+    getUserById,
+    updateUser,
+    deactivateUser,
+    reactivateUser,
+    getUserCV
+};

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const Customer = require('./src/models/CustomerModel');
-const Project = require('./src/models/ProjectModel');
+const Customer = require('./src/models/customerModel');
+const Project = require('./src/models/projectModel');
 
 const MONGO_URI = 'mongodb://127.0.0.1:27017/software_company_db';
 

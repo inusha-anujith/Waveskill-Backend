@@ -1,7 +1,16 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
-const scripts = ['seedAdmin.js', 'seedUsers.js', 'seedLeaves.js', 'seedAttendance.js'];
+// seedUsers must run before seedOTRequests / seedAttendance / seedLeaves,
+// since those look their subjects up by email.
+const scripts = [
+    'seedAdmin.js',
+    'seedUsers.js',
+    'seedLeaves.js',
+    'seedAttendance.js',
+    'seedOTRequests.js',
+    'seedCustomers.js'
+];
 
 let allOk = true;
 for (const s of scripts) {

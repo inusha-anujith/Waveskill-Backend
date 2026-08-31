@@ -36,6 +36,15 @@ const loginUser = async (req, res) => {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
         if (user && (await user.matchPassword(password))) {
+            // A deactivated account must not be able to sign in, otherwise
+            // "Inactive" means nothing. Checked after the password comparison
+            // so the response does not reveal which emails exist.
+            if (user.status === 'Inactive') {
+                return res.status(403).json({
+                    success: false,
+                    message: 'This account has been deactivated. Please contact your administrator.'
+                });
+            }
             res.status(200).json({ success: true, _id: user._id, name: user.name, email: user.email, role: user.role, token: generateToken(user._id) });
         } else {
             res.status(401).json({ success: false, message: 'Invalid email or password' });

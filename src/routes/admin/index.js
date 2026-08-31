@@ -8,6 +8,7 @@ const adminLeaveRoutes = require('./adminLeaveRoutes');
 const adminAttendanceRoutes = require('./adminAttendanceRoutes');
 const adminAnalyticsRoutes = require('./adminAnalyticsRoutes');
 const adminOTRoutes = require('./adminOTRoutes');
+const adminCustomerRoutes = require('./adminCustomerRoutes');
 
 // All /api/admin routes require authentication
 router.use(protect);
@@ -20,5 +21,8 @@ router.use('/analytics', restrictTo('Admin', 'Manager'), adminAnalyticsRoutes);
 
 // OT: Manager only (controller double-checks internally)
 router.use('/ot', restrictTo('Manager'), adminOTRoutes);
+
+// Customers: Admin only — customer management is an Admin responsibility
+router.use('/customers', restrictTo('Admin'), adminCustomerRoutes);
 
 module.exports = router;

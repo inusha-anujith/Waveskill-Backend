@@ -1,11 +1,12 @@
+const fs = require('fs');
+const path = require('path');
 const User = require('../models/userModel');
 const Leave = require('../models/leaveModel');
 const bcrypt = require('bcryptjs'); // [NEW]: Required to securely compare the old password
+const { CV_UPLOAD_DIR } = require('../middleware/uploadMiddleware');
 
-// ==========================================
 // @desc    Get logged in user's full profile data (Overview, Leave Balance, Skills, Emergency)
 // @route   GET /api/profile/me
-// ==========================================
 const getMyProfile = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -47,10 +48,8 @@ const getMyProfile = async (req, res) => {
     }
 };
 
-// ==========================================
 // @desc    Update user profile (from the "Edit Profile" modal)
 // @route   PUT /api/profile/update
-// ==========================================
 const updateProfile = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -109,5 +108,76 @@ const changePassword = async (req, res) => {
     }
 };
 
-// Export the new function alongside the existing ones
-module.exports = { getMyProfile, updateProfile, changePassword };
+// @desc    Store an uploaded CV against the logged-in user
+// @route   POST /api/profile/upload-cv
+const uploadCV = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'No file uploaded' });
+        }
+
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Remove the previously uploaded CV so old files do not pile up on disk.
+        if (user.cvFile) {
+            const previous = path.join(CV_UPLOAD_DIR, path.basename(user.cvFile));
+            fs.promises.unlink(previous).catch(() => { /* already gone, nothing to do */ });
+        }
+
+        // Store only the filename. Building the absolute path at read time keeps
+        // the record portable between machines and prevents path traversal.
+        user.cvFile = req.file.filename;
+        user.cvUpdateStatus = 'Pending Review';
+        user.activities.unshift({ action: 'Uploaded a new CV', date: new Date() });
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'CV Uploaded!',
+            cvFile: user.cvFile,
+            cvUpdateStatus: user.cvUpdateStatus
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Streams a stored CV back to the client. Shared by the employee-facing
+// /api/profile/cv and the admin-facing /api/admin/users/:id/cv so both apply
+// the same traversal guard and the same missing-file handling.
+const sendCVFile = (res, user) => {
+    if (!user.cvFile) {
+        return res.status(404).json({ success: false, message: 'No CV has been uploaded for this user' });
+    }
+
+    // basename() ensures a tampered DB value cannot walk out of the upload dir.
+    const absolutePath = path.join(CV_UPLOAD_DIR, path.basename(user.cvFile));
+
+    if (!fs.existsSync(absolutePath)) {
+        return res.status(404).json({
+            success: false,
+            message: 'CV record exists but the file is missing from the server'
+        });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${user.name.replace(/[^\w\-]/g, '_')}_CV.pdf"`);
+    return res.sendFile(absolutePath);
+};
+
+// @desc    Logged-in user views their own CV
+// @route   GET /api/profile/cv
+const getMyCV = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select('name cvFile');
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        return sendCVFile(res, user);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+module.exports = { getMyProfile, updateProfile, changePassword, uploadCV, getMyCV, sendCVFile };

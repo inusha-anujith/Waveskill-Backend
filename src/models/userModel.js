@@ -5,8 +5,15 @@ const userSchema = new mongoose.Schema({
     name: { type: String, required: [true, 'Please add a name'] },
     email: { type: String, required: [true, 'Please add an email'], unique: true },
     password: { type: String, required: [true, 'Please add a password'] },
-    role: { type: String, enum: ['Employee', 'Manager', 'Admin'], default: 'Employee' },
-    
+    role: { type: String, enum: ['Employee', 'Manager', 'Admin', 'Customer'], default: 'Employee' },
+
+    // Accounts are deactivated rather than deleted, so history (attendance,
+    // leaves, OT) keeps resolving. Documents created before this field existed
+    // have no value, so queries must treat "missing" as Active.
+    status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
+    deactivatedAt: { type: Date },
+    deactivatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
     department: { type: String, default: 'Unassigned' },
     position: { type: String, default: 'Employee' },
     employeeId: { type: String },

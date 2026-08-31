@@ -6,6 +6,9 @@ node_modules/
 .env.*
 !.env.example
 
+# Uploaded files
+uploads/
+
 # Logs
 logs
 *.log
