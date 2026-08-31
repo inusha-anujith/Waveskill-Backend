@@ -1,5 +1,6 @@
 const Customer = require('../../models/customerModel');
 const Project = require('../../models/projectModel');
+const { buildSearchRegex } = require('../../utils/queryHelpers');
 
 // Fields an Admin may set when creating or updating a customer. Anything else
 // in the request body (role, _id, timestamps) is ignored on purpose.
@@ -24,11 +25,15 @@ const listCustomers = async (req, res) => {
 
         if (status) query.status = status;
         if (search) {
+            // Mirrors the fields the UI advertises in its search placeholder,
+            // including industry which was previously missing.
+            const regex = buildSearchRegex(search);
             query.$or = [
-                { firstName: { $regex: search, $options: 'i' } },
-                { lastName: { $regex: search, $options: 'i' } },
-                { email: { $regex: search, $options: 'i' } },
-                { companyName: { $regex: search, $options: 'i' } }
+                { firstName: regex },
+                { lastName: regex },
+                { email: regex },
+                { companyName: regex },
+                { industry: regex }
             ];
         }
 
@@ -47,7 +52,21 @@ const listCustomers = async (req, res) => {
             projectCount: countByCustomer.get(String(c._id)) || 0
         }));
 
-        res.status(200).json({ success: true, count: data.length, data });
+        // Counted across all customers, not the filtered rows, so the stat
+        // cards stay stable while the table is searched.
+        const [total, active, prospects, totalProjects] = await Promise.all([
+            Customer.countDocuments({}),
+            Customer.countDocuments({ status: 'ACTIVE CLIENT' }),
+            Customer.countDocuments({ status: 'PROSPECT' }),
+            Project.countDocuments({ customerId: { $ne: null } })
+        ]);
+
+        res.status(200).json({
+            success: true,
+            count: data.length,
+            stats: { total, active, prospects, totalProjects },
+            data
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

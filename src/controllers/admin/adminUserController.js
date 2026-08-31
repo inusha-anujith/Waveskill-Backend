@@ -1,7 +1,39 @@
 const User = require('../../models/userModel');
 const { sendCVFile } = require('../profileController');
+const { buildSearchRegex } = require('../../utils/queryHelpers');
 
 const ADMIN_CREATABLE_ROLES = ['Employee', 'Manager'];
+
+// Documents predating the status field have no value, so "active" is
+// "not explicitly Inactive" rather than an equality match.
+const ACTIVE_MATCH = { $ne: 'Inactive' };
+
+// Stat cards must describe the whole collection, not the current search
+// results — otherwise searching "john" would make "Total Employees" read 1.
+// Deliberately ignores every filter on the request.
+const buildUserStats = async () => {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [totalEmployees, totalManagers, inactiveCount, recentJoins, cvUpToDate, activeStaff] =
+        await Promise.all([
+            User.countDocuments({ role: 'Employee', status: ACTIVE_MATCH }),
+            User.countDocuments({ role: 'Manager', status: ACTIVE_MATCH }),
+            User.countDocuments({ status: 'Inactive' }),
+            User.countDocuments({
+                role: { $in: ['Employee', 'Manager'] },
+                status: ACTIVE_MATCH,
+                joinDate: { $gte: thirtyDaysAgo }
+            }),
+            User.countDocuments({
+                role: { $ne: 'Admin' },
+                status: ACTIVE_MATCH,
+                cvUpdateStatus: 'Up to Date'
+            }),
+            User.countDocuments({ role: { $ne: 'Admin' }, status: ACTIVE_MATCH })
+        ]);
+
+    return { totalEmployees, totalManagers, inactiveCount, recentJoins, cvUpToDate, activeStaff };
+};
 
 const sanitize = (user) => {
     const obj = user.toObject ? user.toObject() : { ...user };
@@ -66,30 +98,45 @@ const createUser = async (req, res) => {
     }
 };
 
-// @desc    List all users (filterable by role / search)
+// @desc    List users, filterable by role / department / status / search
 // @route   GET /api/admin/users
 const listUsers = async (req, res) => {
     try {
-        const { role, search, status } = req.query;
+        const { role, search, status, department } = req.query;
         const query = {};
 
         if (role) query.role = role;
 
         // Records created before the status field existed have no value, so
         // "Active" must match missing as well as explicitly Active.
-        if (status === 'Active') query.status = { $ne: 'Inactive' };
+        if (status === 'Active') query.status = ACTIVE_MATCH;
         else if (status) query.status = status;
 
+        if (department) {
+            // department defaults to 'Unassigned', but older documents may not
+            // have the field at all — those belong under 'Unassigned' too.
+            query.department = department === 'Unassigned'
+                ? { $in: ['Unassigned', null] }
+                : department;
+        }
+
         if (search) {
+            const regex = buildSearchRegex(search);
             query.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { email: { $regex: search, $options: 'i' } },
-                { employeeId: { $regex: search, $options: 'i' } }
+                { name: regex },
+                { email: regex },
+                { employeeId: regex }
             ];
         }
 
         const users = await User.find(query).select('-password').sort({ createdAt: -1 });
-        res.status(200).json({ success: true, count: users.length, data: users });
+
+        res.status(200).json({
+            success: true,
+            count: users.length,
+            stats: await buildUserStats(),
+            data: users
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

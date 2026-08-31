@@ -6,7 +6,7 @@ const User = require('../models/userModel');
 const getAllProjects = async (req, res) => {
     try {
         const projects = await Project.find()
-            .populate('team.user', 'name')
+            .populate('team.user', 'name profilePhoto')
             .sort({ createdAt: -1 });
         res.status(200).json({ success: true, data: projects });
     } catch (error) {
@@ -20,7 +20,7 @@ const createProject = async (req, res) => {
         const { title, overview, priority, status, progress, team, dueDate } = req.body;
         if (!title) return res.status(400).json({ success: false, message: 'Title is required' });
         const project = await Project.create({ title, overview, priority, status, progress, team, dueDate });
-        await project.populate('team.user', 'name');
+        await project.populate('team.user', 'name profilePhoto');
         res.status(201).json({ success: true, data: project });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -32,7 +32,7 @@ const getMyProjects = async (req, res) => {
     try {
         const userId = req.user._id;
         const projects = await Project.find({ 'team.user': userId })
-            .populate('team.user', 'name')
+            .populate('team.user', 'name profilePhoto')
             .sort({ createdAt: -1 });
 
         res.status(200).json({
@@ -69,7 +69,7 @@ const updateProject = async (req, res) => {
             projectId,
             update,
             { new: true, runValidators: true }
-        ).populate('team.user', 'name');
+        ).populate('team.user', 'name profilePhoto');
 
         if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
 

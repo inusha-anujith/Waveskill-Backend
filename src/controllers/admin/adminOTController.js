@@ -1,4 +1,5 @@
 const OTRequest = require('../../models/otRequestModel');
+const { findUserIdsMatching } = require('../../utils/queryHelpers');
 
 // @desc    Manager lists all OT requests
 // @route   GET /api/admin/ot
@@ -8,19 +9,29 @@ const listOTRequests = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Only Managers can access OT requests' });
         }
 
-        const { status, userId } = req.query;
+        const { status, userId, search } = req.query;
         const query = {};
         if (status) query.status = status;
         if (userId) query.user = userId;
 
-        const requests = await OTRequest.find(query)
-            .populate('user', 'name email department position')
-            .populate('reviewedBy', 'name')
-            .sort({ createdAt: -1 });
+        // OTRequest references the user, so a name search resolves matching
+        // user ids first. An empty result correctly yields zero rows.
+        if (search && search.trim()) {
+            query.user = { $in: await findUserIdsMatching(search) };
+        }
 
-        const pending = requests.filter(r => r.status === 'Pending').length;
-        const approved = requests.filter(r => r.status === 'Approved').length;
-        const rejected = requests.filter(r => r.status === 'Rejected').length;
+        // Counts are taken across all requests rather than the filtered rows,
+        // so the Pending/Approved/Rejected totals do not collapse to the
+        // current search or status selection.
+        const [requests, pending, approved, rejected] = await Promise.all([
+            OTRequest.find(query)
+                .populate('user', 'name email department position')
+                .populate('reviewedBy', 'name')
+                .sort({ createdAt: -1 }),
+            OTRequest.countDocuments({ status: 'Pending' }),
+            OTRequest.countDocuments({ status: 'Approved' }),
+            OTRequest.countDocuments({ status: 'Rejected' })
+        ]);
 
         res.status(200).json({
             success: true,

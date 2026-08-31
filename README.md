@@ -262,6 +262,41 @@ curl -s -w "\n%{http_code}\n" -X DELETE \
 | `User with this email already exists` while seeding | Already there. Seeders are idempotent so it's safe to ignore. |
 | `Cannot demote the last Admin` | Create a second Admin first (e.g. via `POST /api/admin/users` with role override in DB), or skip the demotion. |
 
+## File uploads (profile photos & CVs)
+
+Uploads are written to the **local filesystem**, not to cloud storage. Only the
+generated filename is stored in MongoDB; the URL/path is rebuilt at read time.
+
+```
+uploads/
+  avatars/   profile photos  — 128-bit random filenames, max 2MB, jpg/png/webp
+  cvs/       CV documents    — timestamped filenames, max 5MB, PDF only
+```
+
+`uploads/` is gitignored and both folders are created automatically at startup.
+
+**Access model — the two are deliberately different:**
+
+| | Route | Auth |
+|---|---|---|
+| Avatars | `GET /uploads/avatars/<file>` (`express.static`) | **Public.** An `<img>` tag cannot send an `Authorization` header, so the unguessable random filename is the access control. Cached for 7 days — safe because every upload gets a new filename. |
+| CVs | `GET /api/profile/cv`, `GET /api/admin/users/:id/cv` | **Authenticated.** Never served statically. The frontend fetches them as a blob and opens an object URL. |
+
+Endpoints: `POST /api/profile/upload-photo`, `DELETE /api/profile/photo`,
+`POST /api/profile/upload-cv`. Replacing a file deletes the previous one, so
+old uploads don't accumulate.
+
+> ### ⚠️ Deployment caveat
+> Local disk survives a server **restart**, but is wiped on **redeploy** by
+> ephemeral hosts (Heroku, Railway, most container platforms). Uploaded photos
+> and CVs would disappear on every deploy, leaving filenames in Mongo with no
+> file behind them (the UI degrades gracefully: avatars fall back to the
+> initial, CVs return a clear "file is missing from the server" error).
+>
+> For production either mount a **persistent volume** at `uploads/`, or move to
+> object storage (S3/Cloudinary) and store the key in `profilePhoto`/`cvFile`
+> instead of a bare filename.
+
 ## Reset everything
 
 ```bash
