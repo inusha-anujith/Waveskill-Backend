@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
 
 // All Route Imports (Your Customer routes + Team routes)
 const employeeRoutes = require('./routes/employeeRoutes');
@@ -39,6 +40,25 @@ app.use('/api/admin', adminRoutes);
 // Base route test
 app.get('/', (req, res) => {
     res.send('Waveskill HR API is running...');
+});
+
+// Error handler. Without this, multer rejections (wrong file type, file too
+// large) bubble up as an HTML stack trace, which the frontend cannot parse.
+app.use((err, req, res, next) => {
+    if (res.headersSent) return next(err);
+
+    if (err instanceof multer.MulterError) {
+        const message = err.code === 'LIMIT_FILE_SIZE'
+            ? 'File is too large. Maximum size is 5MB.'
+            : err.message;
+        return res.status(400).json({ success: false, message });
+    }
+
+    console.error(err);
+    res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Internal server error'
+    });
 });
 
 module.exports = app;

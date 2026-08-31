@@ -6,7 +6,9 @@ const {
     listUsers,
     getUserById,
     updateUser,
-    deleteUser
+    deactivateUser,
+    reactivateUser,
+    getUserCV
 } = require('../../controllers/admin/adminUserController');
 
 const { restrictTo } = require('../../middleware/auth');
@@ -20,6 +22,15 @@ router.route('/')
 router.route('/:id')
     .get(getUserById)
     .patch(restrictTo('Admin'), updateUser)
-    .delete(restrictTo('Admin'), deleteUser);
+    // DELETE now deactivates rather than destroying the record. Kept as an
+    // alias so any existing caller keeps working.
+    .delete(restrictTo('Admin'), deactivateUser);
+
+router.patch('/:id/deactivate', restrictTo('Admin'), deactivateUser);
+router.patch('/:id/reactivate', restrictTo('Admin'), reactivateUser);
+
+// Serving the CV through an authenticated route (rather than express.static on
+// the uploads folder) keeps CVs from being readable by anyone who guesses a URL.
+router.get('/:id/cv', getUserCV);
 
 module.exports = router;

@@ -8,6 +8,8 @@
     "seed:users": "node scripts/seedUsers.js",
     "seed:leaves": "node scripts/seedLeaves.js",
     "seed:attendance": "node scripts/seedAttendance.js",
+    "seed:ot": "node scripts/seedOTRequests.js",
+    "seed:customers": "node scripts/seedCustomers.js",
     "seed:all": "node scripts/seedDemo.js"
   },
   "dependencies": {

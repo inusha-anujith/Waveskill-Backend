@@ -1,8 +1,6 @@
-const Customer = require('../models/CustomerModel');
-const Project = require('../models/ProjectModel');
+const Customer = require('../models/customerModel');
+const Project = require('../models/projectModel');
 const jwt = require('jsonwebtoken');
-// [FIX]: Import bcrypt to securely compare the hashed passwords
-const bcrypt = require('bcryptjs'); 
 
 // ==========================================
 // 1. Get Customer Profile
@@ -60,15 +58,22 @@ exports.loginCustomer = async (req, res) => {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
-    // [FIX]: Step 2: Use bcrypt to mathematically compare the typed password against the database hash
-    const isMatch = await bcrypt.compare(password, customer.password);
+    // Step 2: Compare the typed password against the stored bcrypt hash
+    const isMatch = await customer.matchPassword(password);
     if (!isMatch) {
         return res.status(400).json({ message: 'Invalid email or password' });
     }
 
+    // Deactivated / archived clients keep their record but lose portal access.
+    if (['INACTIVE', 'ARCHIVED'].includes(customer.status)) {
+        return res.status(403).json({
+            message: 'This account has been deactivated. Please contact your account manager.'
+        });
+    }
+
     // Step 3: Generate the JWT Token for the frontend
     const token = jwt.sign(
-      { id: customer._id },
+      { id: customer._id, role: 'Customer' },
       process.env.JWT_SECRET || 'secret_key_123',
       { expiresIn: '7d' }
     );
@@ -80,7 +85,8 @@ exports.loginCustomer = async (req, res) => {
         id: customer._id,
         firstName: customer.firstName,
         lastName: customer.lastName,
-        email: customer.email
+        email: customer.email,
+        role: customer.role
       }
     });
   } catch (err) {
