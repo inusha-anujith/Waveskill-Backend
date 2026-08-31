@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
+const { AVATAR_UPLOAD_DIR } = require('./middleware/uploadMiddleware');
 
 // All Route Imports (Your Customer routes + Team routes)
 const employeeRoutes = require('./routes/employeeRoutes');
@@ -24,6 +25,18 @@ app.use(cors({
 
 // Middleware to parse JSON
 app.use(express.json());
+
+// Avatars are served without authentication because an <img> tag cannot send
+// an Authorization header. Filenames are 128-bit random, so the URL itself is
+// the access control. Long cache headers are safe: every upload gets a new
+// filename, so a replaced photo can never be served stale.
+// CVs are deliberately NOT exposed this way — they stay behind the
+// authenticated /api/profile/cv and /api/admin/users/:id/cv routes.
+app.use('/uploads/avatars', express.static(AVATAR_UPLOAD_DIR, {
+    maxAge: '7d',
+    immutable: true,
+    fallthrough: true
+}));
 
 // Mounting All Routes
 app.use('/api/employees', employeeRoutes);

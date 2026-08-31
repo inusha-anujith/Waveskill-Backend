@@ -3,7 +3,20 @@ const path = require('path');
 const User = require('../models/userModel');
 const Leave = require('../models/leaveModel');
 const bcrypt = require('bcryptjs'); // [NEW]: Required to securely compare the old password
-const { CV_UPLOAD_DIR } = require('../middleware/uploadMiddleware');
+const { CV_UPLOAD_DIR, AVATAR_UPLOAD_DIR } = require('../middleware/uploadMiddleware');
+
+// Older records stored the photo as a base64 data URL rather than a filename.
+// Those have no file on disk, so any unlink must be skipped for them.
+const isStoredFile = (value) => !!value && !value.startsWith('data:');
+
+// Best-effort removal of a superseded upload. Never rejects: a missing file is
+// not a reason to fail the request that replaced it.
+const removeUploadedFile = (dir, storedValue) => {
+    if (!isStoredFile(storedValue)) return;
+    fs.promises
+        .unlink(path.join(dir, path.basename(storedValue)))
+        .catch(() => { /* already gone, nothing to do */ });
+};
 
 // @desc    Get logged in user's full profile data (Overview, Leave Balance, Skills, Emergency)
 // @route   GET /api/profile/me
@@ -122,10 +135,7 @@ const uploadCV = async (req, res) => {
         }
 
         // Remove the previously uploaded CV so old files do not pile up on disk.
-        if (user.cvFile) {
-            const previous = path.join(CV_UPLOAD_DIR, path.basename(user.cvFile));
-            fs.promises.unlink(previous).catch(() => { /* already gone, nothing to do */ });
-        }
+        removeUploadedFile(CV_UPLOAD_DIR, user.cvFile);
 
         // Store only the filename. Building the absolute path at read time keeps
         // the record portable between machines and prevents path traversal.
@@ -140,6 +150,57 @@ const uploadCV = async (req, res) => {
             cvFile: user.cvFile,
             cvUpdateStatus: user.cvUpdateStatus
         });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// @desc    Store an uploaded profile photo against the logged-in user
+// @route   POST /api/profile/upload-photo
+const uploadPhoto = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'No image uploaded' });
+        }
+
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        removeUploadedFile(AVATAR_UPLOAD_DIR, user.profilePhoto);
+
+        // Only the filename is stored. The client builds the URL, which keeps
+        // the record portable and prevents path traversal on read.
+        user.profilePhoto = req.file.filename;
+        user.activities.unshift({ action: 'Updated profile photo', date: new Date() });
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile photo updated',
+            profilePhoto: user.profilePhoto
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// @desc    Remove the logged-in user's profile photo
+// @route   DELETE /api/profile/photo
+const deletePhoto = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        removeUploadedFile(AVATAR_UPLOAD_DIR, user.profilePhoto);
+
+        user.profilePhoto = '';
+        await user.save();
+
+        res.status(200).json({ success: true, message: 'Profile photo removed' });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -180,4 +241,13 @@ const getMyCV = async (req, res) => {
     }
 };
 
-module.exports = { getMyProfile, updateProfile, changePassword, uploadCV, getMyCV, sendCVFile };
+module.exports = {
+    getMyProfile,
+    updateProfile,
+    changePassword,
+    uploadCV,
+    getMyCV,
+    sendCVFile,
+    uploadPhoto,
+    deletePhoto
+};

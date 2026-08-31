@@ -45,7 +45,17 @@ const loginUser = async (req, res) => {
                     message: 'This account has been deactivated. Please contact your administrator.'
                 });
             }
-            res.status(200).json({ success: true, _id: user._id, name: user.name, email: user.email, role: user.role, token: generateToken(user._id) });
+            res.status(200).json({
+                success: true,
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                // Lets the header avatar render immediately without an extra
+                // round-trip on every page.
+                profilePhoto: user.profilePhoto || '',
+                token: generateToken(user._id)
+            });
         } else {
             res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
